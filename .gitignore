@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Backend outputs (lattice/report files)
+backend/data/
+
+# Misc
+*.local
+.cache/
