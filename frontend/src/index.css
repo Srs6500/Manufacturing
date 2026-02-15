@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+/* ——— Electric Blueprint theme (Tesla-inspired) ——— */
+:root {
+  /* Palette */
+  --bp-bg: #001133;           /* Deep Prussian Blue */
+  --bp-bg-alt: #1a1a1a;       /* Blackboard Charcoal fallback */
+  --bp-ink: #e0e0e0;          /* Blueprint White */
+  --bp-ink-muted: #9ca3af;
+  --bp-energy: #00ffff;       /* Arc Blue — active / AI */
+  --bp-energy-dim: rgba(0, 255, 255, 0.4);
+  --bp-warning: #ff6f00;      /* Copper Oxide Orange */
+  --bp-glass: rgba(0, 17, 51, 0.85);
+  --bp-glass-border: rgba(0, 255, 255, 0.15);
+
+  /* Typography */
+  --font-ui: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  font-family: var(--font-ui);
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+  color: var(--bp-ink);
+  background-color: var(--bp-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Graph-paper grid background (Mind's Eye) */
+.bp-grid-bg {
+  background-color: var(--bp-bg);
+  background-image:
+    linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Tesla coil / charge-up loading bar */
+@keyframes bp-coil-charge {
+  0% { opacity: 0.3; transform: scaleX(0); }
+  50% { opacity: 1; transform: scaleX(0.5); }
+  100% { opacity: 0.8; transform: scaleX(1); }
+}
+
+.bp-coil-loader {
+  height: 3px;
+  background: linear-gradient(90deg, var(--bp-energy-dim), var(--bp-energy));
+  transform-origin: left;
+  animation: bp-coil-charge 1.2s ease-in-out infinite;
+}
+
+/* Datasheet / patent style (Build Bible) */
+.bp-datasheet {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+}
+
+.bp-datasheet-header {
+  font-weight: 600;
+  color: var(--bp-energy);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+}
+
+.bp-fig-label {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--bp-ink-muted);
+  font-size: 0.75rem;
+}
