@@ -1,0 +1,170 @@
+// Prisma schema — Lattice AI production
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ——— Part 1: Multi-Tenancy (The Human Brain) ———
+
+model Organization {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  slug              String   @unique
+  tier              String   @default("free") // free | pro | enterprise
+  stripeCustomerId  String?  @map("stripe_customer_id")
+  settings          Json?    @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  users    User[]
+  projects Project[]
+}
+
+model User {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String?  @map("organization_id") @db.Uuid
+  role            String   @default("member") // owner | admin | member
+  creditsRemaining Int     @default(10) @map("credits_remaining")
+  authUserId      String?  @unique @map("auth_user_id") // Supabase Auth id when integrated
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  organization     Organization?      @relation(fields: [organizationId], references: [id])
+  materialTestData MaterialTestData[]
+  projects         Project[]
+  designsRequested ManufacturingJob[] @relation("Requester")
+  designsPrinted   ManufacturingJob[] @relation("Printer")
+}
+
+// ——— Part 2: Material Brain (Chemistry + Physics) ———
+
+model Material {
+  id               String   @id @default(uuid()) @db.Uuid
+  name             String
+  chemicalFormula  String?  @map("chemical_formula")
+  crystalStructure String?  @map("crystal_structure")
+  densityGPerCm3   Decimal? @map("density_g_cm3") @db.Decimal
+  youngsModulusGpa Decimal? @map("youngs_modulus_gpa") @db.Decimal
+  yieldStrengthMpa Decimal? @map("yield_strength_mpa") @db.Decimal
+  meltingPointC   Decimal? @map("melting_point_c") @db.Decimal
+  costUsdPerKg    Decimal? @map("cost_usd_per_kg") @db.Decimal
+  printableBy     String[] @map("printable_by") // ['SLM', 'FDM', 'Binder Jet']
+  certifications  String[]
+  supplierLinks   Json?    @map("supplier_links")
+  embedding       Json?    // pgvector: stored as JSON for now; migrate to vector(1536) later
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  materialTestData MaterialTestData[]
+  designs          Design[]
+}
+
+model MaterialTestData {
+  id               String   @id @default(uuid()) @db.Uuid
+  materialId       String   @map("material_id") @db.Uuid
+  testType         String   @map("test_type") // tensile | compression | fatigue
+  measuredStrengthMpa Decimal? @map("measured_strength_mpa") @db.Decimal
+  measuredModulusGpa Decimal? @map("measured_modulus_gpa") @db.Decimal
+  printSettings   Json?    @map("print_settings")
+  testDate        DateTime? @map("test_date") @db.Date
+  contributedById String?  @map("contributed_by") @db.Uuid
+  verified        Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  material      Material @relation(fields: [materialId], references: [id])
+  contributedBy User?    @relation(fields: [contributedById], references: [id])
+}
+
+// ——— Part 3: Design Brain (CAD Files + Memory) ———
+
+model Project {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  parentProjectId String?  @map("parent_project_id") @db.Uuid
+  createdById    String?  @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  parentProject   Project?     @relation("ProjectHierarchy", fields: [parentProjectId], references: [id])
+  childProjects  Project[]    @relation("ProjectHierarchy")
+  createdBy      User?        @relation(fields: [createdById], references: [id])
+  designs        Design[]
+}
+
+model Design {
+  id             String   @id @default(uuid()) @db.Uuid
+  projectId      String   @map("project_id") @db.Uuid
+  version        Int      @default(1)
+  parentDesignId String?  @map("parent_design_id") @db.Uuid
+
+  userPrompt        String   @map("user_prompt")
+  parsedRequirements Json?   @map("parsed_requirements")
+
+  fileUrl      String?  @map("file_url")
+  fileHash     String?  @unique @map("file_hash")
+  thumbnailUrl String?  @map("thumbnail_url")
+
+  materialId      String?  @map("material_id") @db.Uuid
+  massGrams       Decimal? @map("mass_grams") @db.Decimal
+  maxStressMpa    Decimal? @map("max_stress_mpa") @db.Decimal
+  safetyFactor    Decimal? @map("safety_factor") @db.Decimal
+  simulationData  Json?    @map("simulation_data")
+
+  buildParameters Json?   @map("build_parameters")
+  embedding       Json?   // pgvector: stored as JSON for now
+  agentLogs       Json?   @map("agent_logs")
+
+  blockchainTxHash String? @map("blockchain_tx_hash")
+  certifiedAt     DateTime? @map("certified_at")
+
+  status    String   @default("generating") // generating | ready | failed
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project       Project   @relation(fields: [projectId], references: [id])
+  parentDesign  Design?   @relation("DesignVersioning", fields: [parentDesignId], references: [id])
+  childDesigns Design[]  @relation("DesignVersioning")
+  material          Material?          @relation(fields: [materialId], references: [id])
+  manufacturingJobs ManufacturingJob[]
+}
+
+// ——— Part 4: Manufacturing Jobs (Print Marketplace) ———
+
+model ManufacturingJob {
+  id          String   @id @default(uuid()) @db.Uuid
+  designId    String   @map("design_id") @db.Uuid
+  requesterId String   @map("requester_id") @db.Uuid
+  printerId   String   @map("printer_id") @db.Uuid
+
+  status       String   @default("pending") // pending | printing | shipped | complete
+  priceUsd     Decimal? @map("price_usd") @db.Decimal
+  platformFeeUsd Decimal? @map("platform_fee_usd") @db.Decimal
+
+  printerLatitude  Decimal? @map("printer_latitude") @db.Decimal
+  printerLongitude Decimal? @map("printer_longitude") @db.Decimal
+
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  design    Design @relation(fields: [designId], references: [id])
+  requester User   @relation("Requester", fields: [requesterId], references: [id])
+  printer   User   @relation("Printer", fields: [printerId], references: [id])
+}
+
+// ——— Job (generation pipeline; will migrate to Design when multi-tenant) ———
+// Used by: POST /api/generate, WebSocket progress, GET /api/jobs/:id, download
+
+model Job {
+  id           String   @id
+  prompt       String
+  status       String   // running | done | failed
+  requirements Json?
+  latticePath  String?
+  reportPath   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
