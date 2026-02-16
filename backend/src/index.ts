@@ -5,8 +5,7 @@ import { createServer } from 'http'
 import { Server } from 'socket.io'
 import { createReadStream, existsSync } from 'node:fs'
 import archiver from 'archiver'
-import { analyzeRequirements } from './agents/requirement-analyzer.js'
-import { searchMaterials } from './agents/material-selector.js'
+import { Command } from '@langchain/langgraph'
 import { createJob, updateJob, getJob, listJobs } from './db/index.js'
 import { checkDbHealth } from './db/health.js'
 import { prisma } from './db/client.js'
@@ -14,6 +13,13 @@ import { getJobOutputPaths } from './lib/output-paths.js'
 import { generateLattice } from './generators/lattice-generator.js'
 import { generateBuildBible } from './generators/build-bible.js'
 import { generateCertificate } from './generators/certificate.js'
+import type { AnalyzedRequirements } from './agents/types.js'
+import {
+  getLatticePipelineGraph,
+  isInterrupted,
+  INTERRUPT,
+  type MaterialInterruptValue,
+} from './graph/index.js'
 
 const app = express()
 const httpServer = createServer(app)
@@ -261,65 +267,77 @@ app.post('/api/generate', async (req, res) => {
     room.emit('progress', { step, prompt, ...data })
   }
 
-  // Give client time to subscribe, then run pipeline
+  // Give client time to subscribe, then run LangGraph pipeline
   setTimeout(async () => {
+    const config = { configurable: { thread_id: jobId } }
+    const graph = getLatticePipelineGraph()
+
     try {
       emit('analyzing')
 
-      const requirements = await analyzeRequirements(prompt)
-      const materialOptions = await searchMaterials(requirements ?? null)
-      emit('material', {
-        requirements: requirements ?? undefined,
-        materialOptions,
-      })
-
-      const selectedMaterialId = await waitForMaterialSelection(jobId, materialOptions)
-
-      emit('lattice')
-      const paths = getJobOutputPaths(jobId)
-      const latticeResult = generateLattice(paths.lattice, requirements ?? null, {
-        selectedMaterialId,
-      })
-      const latticePath = latticeResult?.path ?? null
-      if (!latticePath) console.warn('[Pipeline] Lattice generation failed, continuing without STL')
-
-      emit('simulating')
-      await new Promise((r) => setTimeout(r, 600))
-
-      emit('validating')
-      await new Promise((r) => setTimeout(r, 400))
-
-      const reportPath = await generateBuildBible(
-        paths.report,
-        requirements ?? null,
-        prompt,
-        jobId,
-        latticeResult?.simulation ?? undefined
+      let result = await graph.invoke(
+        {
+          prompt,
+          jobId,
+          requirements: null,
+          materialOptions: [],
+          selectedMaterialId: null,
+          latticeResult: null,
+          reportPath: null,
+          error: false,
+        },
+        config
       )
-      if (!reportPath) console.warn('[Pipeline] Build Bible generation failed, continuing without PDF')
 
-      generateCertificate(
-        paths.certificate,
-        jobId,
-        prompt,
-        requirements ?? null,
-        latticeResult?.simulation ?? null
-      )
+      // Human-in-the-loop: wait for material selection if interrupted
+      if (isInterrupted<MaterialInterruptValue>(result)) {
+        const interruptData = result[INTERRUPT][0]?.value
+        if (interruptData) {
+          emit('material', {
+            requirements: interruptData.requirements ?? undefined,
+            materialOptions: interruptData.materialOptions,
+          })
+          const selectedMaterialId = await waitForMaterialSelection(
+            jobId,
+            interruptData.materialOptions
+          )
+          emit('lattice')
+          result = await graph.invoke(new Command({ resume: selectedMaterialId }), config)
+        }
+      }
+
+      // Pipeline complete — use getState for authoritative full state (fixes Build Bible empty on 2nd run)
+      let state: {
+        requirements?: unknown
+        latticeResult?: { path?: string; simulation?: unknown; params?: unknown } | null
+        reportPath?: string | null
+        selectedMaterialId?: string | null
+        error?: boolean
+      }
+      try {
+        const snapshot = await graph.getState(config)
+        state = (snapshot?.values ?? result) as typeof state
+      } catch {
+        state = result as typeof state
+      }
+      const latticePath = state.latticeResult?.path ?? null
+      const reportPath = state.reportPath ?? null
 
       await updateJob(jobId, {
-        status: 'done',
-        requirements: requirements ?? undefined,
+        status: state.error ? 'failed' : 'done',
+        requirements: (state.requirements as AnalyzedRequirements | null | undefined) ?? undefined,
         latticePath,
-        reportPath: reportPath ?? null,
+        reportPath,
       })
       emit('done', {
-        requirements: requirements ?? null,
+        requirements: state.requirements ?? null,
         jobId,
         latticePath,
-        reportPath: reportPath ?? null,
-        simulation: latticeResult?.simulation ?? undefined,
-        latticeParams: latticeResult?.params ?? undefined,
-        selectedMaterialId,
+        reportPath,
+        simulation: state.latticeResult?.simulation ?? undefined,
+        latticeParams: state.latticeResult?.params ?? undefined,
+        selectedMaterialId: state.selectedMaterialId ?? undefined,
+        error: state.error ?? false,
       })
     } catch (err) {
       console.error('[Pipeline]', err)
