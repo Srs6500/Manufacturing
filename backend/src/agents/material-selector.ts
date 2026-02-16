@@ -51,7 +51,103 @@ const CURATED_MATERIALS: MaterialOption[] = [
     printableBy: ['SLM', 'EBM', 'DED'],
     summary: 'Light, extreme strength, aerospace grade. Higher cost.',
   },
+  {
+    id: 'ss316l',
+    name: 'Stainless Steel 316L',
+    formula: 'Fe-Cr-Ni-Mo',
+    density: 7.99,
+    youngsModulus: 193,
+    yieldStrength: 170,
+    costUsdPerKg: 25,
+    printableBy: ['SLM', 'DED', 'Binder Jetting'],
+    summary: 'Corrosion resistant, medical grade. Good for implants and marine.',
+  },
+  {
+    id: 'pla',
+    name: 'PLA (Polylactic Acid)',
+    formula: 'C3H4O2',
+    density: 1.24,
+    youngsModulus: 3.5,
+    yieldStrength: 50,
+    costUsdPerKg: 25,
+    printableBy: ['FDM'],
+    summary: 'Biodegradable, easy to print. Great for prototypes and low-stress parts.',
+  },
+  {
+    id: 'petg',
+    name: 'PETG',
+    formula: 'C10H8O4',
+    density: 1.27,
+    youngsModulus: 2.0,
+    yieldStrength: 50,
+    costUsdPerKg: 30,
+    printableBy: ['FDM'],
+    summary: 'Tough, chemical resistant. Good for functional prototypes.',
+  },
+  {
+    id: 'tpe',
+    name: 'TPE (Flexible)',
+    formula: 'Thermoplastic Elastomer',
+    density: 1.1,
+    youngsModulus: 0.05,
+    yieldStrength: 15,
+    costUsdPerKg: 60,
+    printableBy: ['FDM'],
+    summary: 'Flexible, impact resistant. Ideal for grips and seals.',
+  },
+  {
+    id: 'co-cr',
+    name: 'Cobalt-Chromium',
+    formula: 'Co-Cr-Mo',
+    density: 8.5,
+    youngsModulus: 230,
+    yieldStrength: 900,
+    costUsdPerKg: 150,
+    printableBy: ['SLM', 'EBM'],
+    summary: 'Biocompatible, wear resistant. Dental and orthopedic implants.',
+  },
 ]
+
+/**
+ * Extract material/context hints from requirements (materials + summary + constraints).
+ * Used when materials array is empty or to enrich matching.
+ */
+function extractHintsFromRequirements(requirements: AnalyzedRequirements | null): string[] {
+  if (!requirements) return []
+  const hints = [...(requirements.materials ?? [])]
+  const summary = (requirements.summary ?? '').toLowerCase()
+  const constraints = (requirements.constraints ?? []).join(' ').toLowerCase()
+  const combined = `${summary} ${constraints}`
+
+  // Extract keywords that map to material families
+  const keywordMap: Record<string, string> = {
+    dental: 'titanium',
+    implant: 'titanium',
+    medical: 'stainless',
+    biocompatible: 'cobalt',
+    lightweight: 'aluminum',
+    light: 'aluminum',
+    drone: 'carbon',
+    aerospace: 'titanium',
+    strong: 'titanium',
+    flexible: 'tpe',
+    grip: 'tpe',
+    prototype: 'pla',
+    cheap: 'pla',
+    biodegradable: 'pla',
+    corrosion: 'stainless',
+    marine: 'stainless',
+    printable: 'pla',
+    fdm: 'pla',
+    slm: 'titanium',
+  }
+  for (const [keyword, material] of Object.entries(keywordMap)) {
+    if (combined.includes(keyword) && !hints.some((h) => h.toLowerCase().includes(material))) {
+      hints.push(material)
+    }
+  }
+  return [...new Set(hints)]
+}
 
 /**
  * Search materials matching requirements.
@@ -61,7 +157,7 @@ export async function searchMaterials(
   requirements: AnalyzedRequirements | null
 ): Promise<MaterialOption[]> {
   const apiKey = process.env.MP_API_KEY
-  const hints = requirements?.materials ?? []
+  const hints = extractHintsFromRequirements(requirements)
   const weightG = parseWeightGrams(requirements?.weightConstraint)
   const loadKg = parseLoadKg(requirements?.loadConstraint)
 
@@ -74,7 +170,7 @@ export async function searchMaterials(
     }
   }
 
-  return filterCuratedMaterials(hints, weightG, loadKg)
+  return filterCuratedMaterials(hints, weightG, loadKg, requirements)
 }
 
 function parseWeightGrams(constraint?: string): number {
@@ -92,7 +188,8 @@ function parseLoadKg(constraint?: string): number {
 /**
  * Materials Project REST API.
  * Docs: https://api.materialsproject.org/docs
- * Falls back to curated materials on 404/errors (API format may change).
+ * Uses GET /materials/core/ with query params (OpenAPI spec).
+ * Auth: X-API-KEY header.
  */
 async function searchMaterialsProject(
   apiKey: string,
@@ -102,25 +199,33 @@ async function searchMaterialsProject(
 ): Promise<MaterialOption[]> {
   const elements = hints.flatMap((h) => extractElements(h)).filter(Boolean)
   const elemList = elements.length > 0 ? elements.slice(0, 3) : ['Al', 'Ti', 'C']
+  const elementsParam = elemList.join(',')
 
-  const res = await fetch('https://api.materialsproject.org/materials/summary/', {
-    method: 'POST',
-    headers: {
-      'X-API-KEY': apiKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      criteria: { elements: { $all: elemList } },
-      properties: ['material_id', 'formula_pretty', 'density'],
-      limit: 5,
-    }),
+  const params = new URLSearchParams({
+    elements: elementsParam,
+    _limit: '5',
+    _fields: 'material_id,formula_pretty,density',
   })
 
-  if (!res.ok) throw new Error(`MP API ${res.status}`)
+  const url = `https://api.materialsproject.org/materials/core/?${params.toString()}`
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'X-API-KEY': apiKey,
+    },
+  })
+
+  if (!res.ok) {
+    const errBody = await res.text()
+    console.warn('[MaterialSelector] MP API error response:', errBody.slice(0, 300))
+    throw new Error(`MP API ${res.status}`)
+  }
 
   const data = (await res.json()) as { data?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>
   const rawDocs = Array.isArray(data) ? data : ((data as { data?: Array<Record<string, unknown>> }).data ?? [])
   const docs = rawDocs as Array<Record<string, unknown>>
+
+  if (docs.length === 0) return []
 
   return docs.slice(0, 3).map((d, i) => ({
     id: (d.material_id as string) ?? `mp-${i}`,
@@ -144,6 +249,11 @@ function extractElements(hint: string): string[] {
     nylon: 'C',
     steel: 'Fe',
     copper: 'Cu',
+    cobalt: 'Co',
+    chromium: 'Cr',
+    stainless: 'Fe',
+    pla: 'C',
+    petg: 'C',
   }
   const lower = hint.toLowerCase()
   for (const [k, v] of Object.entries(elementMap)) {
@@ -152,21 +262,66 @@ function extractElements(hint: string): string[] {
   return []
 }
 
+/** Map hint keywords to material IDs for relevance scoring. */
+const HINT_TO_IDS: Record<string, string[]> = {
+  aluminum: ['al-7075'],
+  aluminium: ['al-7075'],
+  titanium: ['ti64'],
+  carbon: ['pa12-cf'],
+  nylon: ['pa12-cf'],
+  steel: ['ss316l'],
+  stainless: ['ss316l'],
+  pla: ['pla'],
+  petg: ['petg'],
+  flexible: ['tpe'],
+  tpe: ['tpe'],
+  cobalt: ['co-cr'],
+  medical: ['ss316l', 'co-cr'],
+  dental: ['co-cr', 'ti64'],
+  implant: ['co-cr', 'ti64', 'ss316l'],
+  drone: ['pa12-cf', 'al-7075'],
+  aerospace: ['ti64', 'al-7075'],
+  prototype: ['pla', 'petg', 'pa12-cf'],
+  lightweight: ['pa12-cf', 'pla', 'al-7075'],
+}
+
 function filterCuratedMaterials(
   hints: string[],
   weightG: number,
-  _loadKg: number
+  _loadKg: number,
+  requirements?: AnalyzedRequirements | null
 ): MaterialOption[] {
-  let filtered = [...CURATED_MATERIALS]
-  if (hints.length > 0) {
-    const lower = hints.map((h) => h.toLowerCase())
-    filtered = filtered.filter((m) =>
-      lower.some((h) => m.name.toLowerCase().includes(h) || m.formula.toLowerCase().includes(h))
-    )
-  }
-  if (filtered.length === 0) filtered = CURATED_MATERIALS
-  if (weightG < 100) {
-    filtered.sort((a, b) => a.density - b.density)
-  }
-  return filtered.slice(0, 3)
+  const lowerHints = hints.map((h) => h.toLowerCase())
+  const summary = (requirements?.summary ?? '').toLowerCase()
+
+  // Score each material by relevance to hints and summary
+  const scored = CURATED_MATERIALS.map((m) => {
+    let score = 0
+    const nameLower = m.name.toLowerCase()
+    const formulaLower = m.formula.toLowerCase()
+    const summaryLower = m.summary.toLowerCase()
+
+    for (const h of lowerHints) {
+      if (nameLower.includes(h) || formulaLower.includes(h)) score += 3
+      if (summaryLower.includes(h)) score += 1
+    }
+    // Boost from HINT_TO_IDS mapping
+    for (const [keyword, ids] of Object.entries(HINT_TO_IDS)) {
+      if (lowerHints.some((h) => h.includes(keyword)) || summary.includes(keyword)) {
+        if (ids.includes(m.id)) score += 2
+      }
+    }
+    return { material: m, score }
+  })
+
+  // Sort: higher score first, then by density for lightweight preference
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    if (weightG < 150) return a.material.density - b.material.density
+    return 0
+  })
+
+  const filtered = scored.filter((s) => s.score > 0).map((s) => s.material)
+  const result = filtered.length > 0 ? filtered : CURATED_MATERIALS
+  return result.slice(0, 4)
 }
