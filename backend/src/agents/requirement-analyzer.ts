@@ -52,7 +52,7 @@ async function analyzeWithVertex(prompt: string): Promise<AnalyzedRequirements |
   }
 
   const location = process.env.GOOGLE_CLOUD_LOCATION ?? 'us-central1'
-  const modelId = process.env.VERTEX_MODEL ?? 'gemini-1.5-flash'
+  const modelId = process.env.VERTEX_MODEL ?? 'gemini-2.5-pro'
 
   try {
     const vertexAI = new VertexAI({ project, location })
