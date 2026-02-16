@@ -31,13 +31,33 @@ Vertical AI SaaS: natural-language → manufacturable lattice structure in under
 
 In dev, the frontend proxies `/api` and `/socket.io` to the backend, so you don’t need to set `VITE_API_URL`.
 
-## Env (optional)
+## Env
 
-- **frontend:** copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_URL` only if the backend is on another host/port (e.g. production).
-- **backend:** copy `backend/.env.example` to `backend/.env.local`.
-  - **Vertex AI (Gemini):** set `GOOGLE_CLOUD_PROJECT` (and run `gcloud auth application-default login`). Optional: `GOOGLE_CLOUD_LOCATION`, `VERTEX_MODEL`.
-  - **OpenAI fallback:** set `OPENAI_API_KEY` if you don’t use Vertex.
-  - **PostgreSQL (required):** set `DATABASE_URL` in `.env.local`. Create DB with `createdb lattice_ai`, then run `npm run db:migrate` in `backend/`.
+Create `backend/.env.local` with:
+
+| Variable | Required | Description |
+|----------|----------|--------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string, e.g. `postgresql://user:pass@localhost:5432/lattice_ai` |
+| `GOOGLE_CLOUD_PROJECT` | Yes (Vertex) | GCP project ID, e.g. `manufacturing-486502` |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Yes (Vertex) | Path to service account JSON key, e.g. `./google-credentials.json` |
+| `GOOGLE_CLOUD_LOCATION` | No | Vertex AI region (default: `us-central1`) |
+| `VERTEX_MODEL` | No | Model ID (default: `gemini-2.5-pro`) |
+| `OPENAI_API_KEY` | Fallback | Used if Vertex is not configured or fails |
+| `MP_API_KEY` | No | Materials Project API key; without it, curated materials are used |
+
+**Vertex AI (service account):**
+1. In [Google Cloud Console](https://console.cloud.google.com), select project `manufacturing-486502`.
+2. Enable **Vertex AI API** (APIs & Services → Enable APIs).
+3. IAM → Service Accounts → Create → name it e.g. `lattice-ai-vertex`.
+4. Grant role **Vertex AI User** (or `roles/aiplatform.user`).
+5. Keys → Add Key → Create new key → JSON. Download.
+6. Save the JSON as `backend/google-credentials.json` (gitignored).
+7. In `backend/.env.local`: `GOOGLE_APPLICATION_CREDENTIALS=./google-credentials.json` and `GOOGLE_CLOUD_PROJECT=manufacturing-486502`.
+
+**Frontend:** Set `VITE_API_URL` only if the backend is on another host/port (e.g. production). Leave unset in dev.
+
+- **PostgreSQL:** Create DB with `createdb lattice_ai`, then run `npm run db:migrate` in `backend/`.
+
 - **API:** `GET /api/jobs/:jobId` returns the stored job (prompt, status, requirements). Jobs can be `running`, `done`, or `failed` if the pipeline errors.
 - **pgvector:** For semantic search on materials/designs, run `brew install pgvector` then `CREATE EXTENSION vector;` in your DB.
 
