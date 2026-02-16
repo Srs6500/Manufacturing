@@ -260,7 +260,10 @@ function App() {
   }
 
   // Show Laboratory when we have a result OR when job completed (lattice/PDF may exist even if requirements failed)
-  const showLaboratory = lastResult != null || (jobId != null && progress === 'done')
+  const showLaboratory =
+    lastResult != null ||
+    (jobId != null && progress === 'done') ||
+    (jobId != null && progress === 'material' && materialOptions.length > 0)
   const isGenerating = progress !== 'idle' && progress !== 'done'
 
   return (
