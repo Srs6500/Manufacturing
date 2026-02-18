@@ -46,6 +46,16 @@ export type RegenerateResponse = {
   }
 }
 
+/** Valid lattice patterns for user selection. */
+export const LATTICE_PATTERNS = [
+  { value: 'strut-grid', label: 'Strut grid' },
+  { value: 'octet-truss', label: 'Octet truss' },
+  { value: 'honeycomb', label: 'Honeycomb' },
+  { value: 'gyroid', label: 'Gyroid' },
+] as const
+
+export type LatticePatternValue = (typeof LATTICE_PATTERNS)[number]['value']
+
 /**
  * Regenerate lattice with tweaked params. Returns new simulation and params.
  */
@@ -53,6 +63,7 @@ export async function regenerateLattice(
   jobId: string,
   overrides: {
     selectedMaterialId?: string
+    pattern?: LatticePatternValue
     density?: number
     strutRadius?: number
     gridX?: number
