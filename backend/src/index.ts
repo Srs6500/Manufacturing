@@ -151,8 +151,10 @@ app.post('/api/jobs/:jobId/regenerate', async (req, res) => {
     return res.status(400).json({ error: 'Job not ready for regeneration', status: job.status })
   }
 
+  const VALID_PATTERNS = ['strut-grid', 'octet-truss', 'honeycomb', 'gyroid'] as const
   const body = (req.body ?? {}) as {
     selectedMaterialId?: string
+    pattern?: string
     density?: number
     strutRadius?: number
     gridX?: number
@@ -162,6 +164,7 @@ app.post('/api/jobs/:jobId/regenerate', async (req, res) => {
 
   const overrides: {
     selectedMaterialId?: string
+    pattern?: (typeof VALID_PATTERNS)[number]
     density?: number
     strutRadius?: number
     gridX?: number
@@ -169,6 +172,9 @@ app.post('/api/jobs/:jobId/regenerate', async (req, res) => {
     gridZ?: number
   } = {}
   if (typeof body.selectedMaterialId === 'string') overrides.selectedMaterialId = body.selectedMaterialId
+  if (typeof body.pattern === 'string' && VALID_PATTERNS.includes(body.pattern as (typeof VALID_PATTERNS)[number])) {
+    overrides.pattern = body.pattern as (typeof VALID_PATTERNS)[number]
+  }
   if (typeof body.density === 'number' && body.density >= 0.1 && body.density <= 1)
     overrides.density = body.density
   if (typeof body.strutRadius === 'number' && body.strutRadius >= 0.5 && body.strutRadius <= 5)

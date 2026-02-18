@@ -50,21 +50,46 @@ function parseDimensionsFromRequirements(requirements: AnalyzedRequirements | nu
 }
 
 /**
- * Pick pattern based on requirements. Lightweight → honeycomb, strong → octet, balance → gyroid.
+ * Pick pattern based on requirements.
+ * - Lightweight/minimal weight → honeycomb
+ * - Strong load / crash / structural → octet-truss
+ * - Prototype / aesthetic / organic → gyroid
+ * - Default → strut-grid (simple, predictable, good for prototyping)
  */
 function pickPatternFromRequirements(requirements: AnalyzedRequirements | null): LatticePattern {
   if (!requirements) return 'strut-grid'
   const s = (requirements.summary ?? '').toLowerCase()
   const w = (requirements.weightConstraint ?? '').toLowerCase()
   const l = (requirements.loadConstraint ?? '').toLowerCase()
+  const mats = (requirements.materials ?? []).join(' ').toLowerCase()
 
-  if (w.includes('light') || w.includes('minimal') || gramsFromConstraint(w) < 100) {
+  const combined = `${s} ${w} ${l} ${mats}`
+
+  if (
+    w.includes('light') ||
+    w.includes('minimal') ||
+    combined.includes('lightweight') ||
+    gramsFromConstraint(w) < 100
+  ) {
     return 'honeycomb'
   }
-  if (l.includes('strong') || l.includes('load') || l.includes('crash')) {
+  if (
+    l.includes('strong') ||
+    l.includes('load') ||
+    l.includes('crash') ||
+    combined.includes('structural') ||
+    combined.includes('aerospace')
+  ) {
     return 'octet-truss'
   }
-  return 'gyroid'
+  if (
+    combined.includes('organic') ||
+    combined.includes('aesthetic') ||
+    combined.includes('smooth')
+  ) {
+    return 'gyroid'
+  }
+  return 'strut-grid'
 }
 
 function gramsFromConstraint(constraint: string): number {
@@ -81,6 +106,7 @@ export interface GenerateLatticeOutput {
 
 export interface LatticeOverrides {
   selectedMaterialId?: string
+  pattern?: LatticePattern
   density?: number
   strutRadius?: number
   gridX?: number
@@ -116,7 +142,8 @@ export function generateLattice(
     let bestPattern: LatticePattern = 'strut-grid'
     let bestParams: LatticeParams | null = null
 
-    const patternToTry = pickPatternFromRequirements(requirements)
+    const patternToTry: LatticePattern =
+      overrides?.pattern ?? pickPatternFromRequirements(requirements)
 
     const params: LatticeParams = {
       pattern: patternToTry,
