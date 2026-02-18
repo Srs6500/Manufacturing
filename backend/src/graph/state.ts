@@ -20,6 +20,10 @@ export interface MaterialOptionState {
   costUsdPerKg?: number
   printableBy: string[]
   summary: string
+  /** Red Alert: toxic/hazardous. Do not use for food contact. */
+  safetyWarning?: string
+  /** Always set: "No known hazards" or brief hazard summary. */
+  safetyStatus?: string
 }
 
 /** Lattice generation result stored in state. */
@@ -67,5 +71,7 @@ export function toMaterialOptionState(m: MaterialOption): MaterialOptionState {
     costUsdPerKg: m.costUsdPerKg,
     printableBy: m.printableBy,
     summary: m.summary,
+    safetyWarning: m.safetyWarning,
+    safetyStatus: m.safetyStatus,
   }
 }

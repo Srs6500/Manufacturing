@@ -2,8 +2,10 @@
  * Material Selector Agent.
  * Searches Materials Project API for materials matching requirements.
  * Falls back to curated options when API is unavailable.
+ * Runs PubChem safety check for toxicity/hazard warnings (Red Alert).
  */
 import type { AnalyzedRequirements } from './types.js'
+import { checkMaterialSafety, getPubChemSearchTerm } from '../lib/pubchem.js'
 
 export interface MaterialOption {
   id: string
@@ -15,6 +17,10 @@ export interface MaterialOption {
   costUsdPerKg?: number
   printableBy: string[]
   summary: string
+  /** Red Alert: toxic/hazardous. Do not use for food contact. */
+  safetyWarning?: string
+  /** Always set: "No known hazards" or brief hazard summary. Shown for every material. */
+  safetyStatus?: string
 }
 
 const CURATED_MATERIALS: MaterialOption[] = [
@@ -106,6 +112,18 @@ const CURATED_MATERIALS: MaterialOption[] = [
     printableBy: ['SLM', 'EBM'],
     summary: 'Biocompatible, wear resistant. Dental and orthopedic implants.',
   },
+  // Test material for toxicity Red Alert (PubChem maps to lead)
+  {
+    id: 'pb-test',
+    name: 'Lead (hazardous – test only)',
+    formula: 'Pb',
+    density: 11.34,
+    youngsModulus: 16,
+    yieldStrength: 18,
+    costUsdPerKg: 3,
+    printableBy: [],
+    summary: 'TEST: Do not use. Toxic. For verifying Red Alert UI only.',
+  },
 ]
 
 /**
@@ -150,8 +168,34 @@ function extractHintsFromRequirements(requirements: AnalyzedRequirements | null)
 }
 
 /**
+ * Enrich materials with PubChem safety warnings (Red Alert for toxic/hazardous).
+ * Rate limit: ~5 req/sec. Runs sequentially with 200ms delay.
+ */
+async function enrichWithSafetyWarnings(options: MaterialOption[]): Promise<MaterialOption[]> {
+  const enriched: MaterialOption[] = []
+  for (let i = 0; i < options.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 220))
+    const m = options[i]
+    try {
+      const searchTerm = getPubChemSearchTerm(m)
+      const safety = await checkMaterialSafety(searchTerm)
+      enriched.push({
+        ...m,
+        safetyWarning: safety.safetyWarning,
+        safetyStatus: safety.safetyWarning ?? 'No known hazards',
+      })
+    } catch (err) {
+      console.warn('[MaterialSelector] PubChem safety check failed for', m.id, err)
+      enriched.push(m)
+    }
+  }
+  return enriched
+}
+
+/**
  * Search materials matching requirements.
  * Uses Materials Project API when MP_API_KEY is set, else returns curated options.
+ * Enriches with PubChem safety warnings (Red Alert for toxic materials).
  */
 export async function searchMaterials(
   requirements: AnalyzedRequirements | null
@@ -161,16 +205,24 @@ export async function searchMaterials(
   const weightG = parseWeightGrams(requirements?.weightConstraint)
   const loadKg = parseLoadKg(requirements?.loadConstraint)
 
+  let options: MaterialOption[]
   if (apiKey) {
     try {
       const results = await searchMaterialsProject(apiKey, hints, weightG, loadKg)
-      if (results.length > 0) return results
+      if (results.length > 0) {
+        options = results
+      } else {
+        options = filterCuratedMaterials(hints, weightG, loadKg, requirements)
+      }
     } catch (err) {
       console.warn('[MaterialSelector] Materials Project API failed, using curated:', err)
+      options = filterCuratedMaterials(hints, weightG, loadKg, requirements)
     }
+  } else {
+    options = filterCuratedMaterials(hints, weightG, loadKg, requirements)
   }
 
-  return filterCuratedMaterials(hints, weightG, loadKg, requirements)
+  return enrichWithSafetyWarnings(options)
 }
 
 function parseWeightGrams(constraint?: string): number {
@@ -198,12 +250,21 @@ async function searchMaterialsProject(
   _loadKg: number
 ): Promise<MaterialOption[]> {
   const elements = hints.flatMap((h) => extractElements(h)).filter(Boolean)
-  const elemList = elements.length > 0 ? elements.slice(0, 3) : ['Al', 'Ti', 'C']
+  // Avoid Ti-heavy results: when hints yield only Ti (or single element), add Al and Fe for diversity.
+  // Default when no hints: Al, Fe, C (not Al, Ti, C) to reduce titanium bias.
+  const defaultElements = ['Al', 'Fe', 'C']
+  const hintElements = [...new Set(elements)]
+  const elemList =
+    hintElements.length > 0
+      ? hintElements.length >= 3
+        ? hintElements.slice(0, 3)
+        : [...hintElements, ...defaultElements.filter((e) => !hintElements.includes(e))].slice(0, 3)
+      : defaultElements
   const elementsParam = elemList.join(',')
 
   const params = new URLSearchParams({
     elements: elementsParam,
-    _limit: '5',
+    _limit: '6',
     _fields: 'material_id,formula_pretty,density',
   })
 
@@ -227,7 +288,8 @@ async function searchMaterialsProject(
 
   if (docs.length === 0) return []
 
-  return docs.slice(0, 3).map((d, i) => ({
+  const pbTest = CURATED_MATERIALS.find((m) => m.id === 'pb-test')
+  const mpOptions = docs.slice(0, 4).map((d, i) => ({
     id: (d.material_id as string) ?? `mp-${i}`,
     name: (d.formula_pretty as string) ?? 'Unknown',
     formula: (d.formula_pretty as string) ?? '',
@@ -238,6 +300,8 @@ async function searchMaterialsProject(
     printableBy: ['SLM', 'FDM'],
     summary: `${d.formula_pretty ?? 'Material'} from Materials Project`,
   }))
+  // Append hazardous test material so Red Alert is visible when using MP
+  return pbTest ? [...mpOptions, pbTest] : mpOptions
 }
 
 function extractElements(hint: string): string[] {
@@ -322,6 +386,10 @@ function filterCuratedMaterials(
   })
 
   const filtered = scored.filter((s) => s.score > 0).map((s) => s.material)
-  const result = filtered.length > 0 ? filtered : CURATED_MATERIALS
-  return result.slice(0, 4)
+  const base = filtered.length > 0 ? filtered : CURATED_MATERIALS.filter((m) => m.id !== 'pb-test')
+  // Include hazardous test material when using curated fallback so Red Alert is visible
+  const pbTest = CURATED_MATERIALS.find((m) => m.id === 'pb-test')
+  const result =
+    filtered.length === 0 && pbTest ? [...base.slice(0, 4), pbTest] : base
+  return result.slice(0, 5)
 }
