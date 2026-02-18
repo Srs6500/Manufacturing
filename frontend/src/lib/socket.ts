@@ -43,7 +43,13 @@ export type ProgressPayload = {
   step: string
   prompt?: string
   requirements?: AnalyzedRequirements | null
-  materialOptions?: Array<{ id: string; name: string; summary: string }>
+  materialOptions?: Array<{
+    id: string
+    name: string
+    summary: string
+    safetyWarning?: string
+    safetyStatus?: string
+  }>
   simulation?: {
     pattern: string
     estimatedMassG: number

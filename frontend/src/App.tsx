@@ -1,6 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { LatticePreview } from './components/LatticePreview'
-import { generate, downloadJobPackage, regenerateLattice } from './lib/api'
+import {
+  generate,
+  downloadJobPackage,
+  regenerateLattice,
+  LATTICE_PATTERNS,
+  type LatticePatternValue,
+} from './lib/api'
 import { subscribeToJob, selectMaterial } from './lib/socket'
 import type { AnalyzedRequirements } from './types/requirements'
 
@@ -35,10 +41,25 @@ function TweakControls({
   onApply,
   disabled,
 }: {
-  params: { density: number; strutRadius: number; gridX: number; gridY: number; gridZ: number }
-  onApply: (overrides: { density?: number; strutRadius?: number; gridX?: number; gridY?: number; gridZ?: number }) => void
+  params: {
+    pattern: string
+    density: number
+    strutRadius: number
+    gridX: number
+    gridY: number
+    gridZ: number
+  }
+  onApply: (overrides: {
+    pattern?: string
+    density?: number
+    strutRadius?: number
+    gridX?: number
+    gridY?: number
+    gridZ?: number
+  }) => void
   disabled: boolean
 }) {
+  const [pattern, setPattern] = useState(params.pattern)
   const [density, setDensity] = useState(params.density)
   const [strutRadius, setStrutRadius] = useState(params.strutRadius)
   const [gridX, setGridX] = useState(params.gridX)
@@ -46,19 +67,36 @@ function TweakControls({
   const [gridZ, setGridZ] = useState(params.gridZ)
 
   useEffect(() => {
+    setPattern(params.pattern)
     setDensity(params.density)
     setStrutRadius(params.strutRadius)
     setGridX(params.gridX)
     setGridY(params.gridY)
     setGridZ(params.gridZ)
-  }, [params.density, params.strutRadius, params.gridX, params.gridY, params.gridZ])
+  }, [params.pattern, params.density, params.strutRadius, params.gridX, params.gridY, params.gridZ])
 
   const handleApply = () => {
-    onApply({ density, strutRadius, gridX, gridY, gridZ })
+    onApply({ pattern, density, strutRadius, gridX, gridY, gridZ })
   }
 
   return (
     <div className="space-y-3 text-sm">
+      <div>
+        <label className="flex justify-between text-[var(--bp-ink-muted)] mb-1">
+          <span>Lattice pattern</span>
+        </label>
+        <select
+          value={pattern}
+          onChange={(e) => setPattern(e.target.value)}
+          className="w-full px-3 py-2 rounded border border-[var(--bp-glass-border)] bg-[var(--bp-bg)] text-[var(--bp-ink)] focus:border-[var(--bp-energy)] focus:outline-none"
+        >
+          {LATTICE_PATTERNS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </div>
       <div>
         <label className="flex justify-between text-[var(--bp-ink-muted)] mb-1">
           <span>Density</span>
@@ -145,9 +183,12 @@ function App() {
   const [prompt, setPrompt] = useState('')
   const [progress, setProgress] = useState<ProgressStep>('idle')
   const [lastResult, setLastResult] = useState<AnalyzedRequirements | null>(null)
-  const [materialOptions, setMaterialOptions] = useState<Array<{ id: string; name: string; summary: string }>>([])
+  const [materialOptions, setMaterialOptions] = useState<
+    Array<{ id: string; name: string; summary: string; safetyWarning?: string; safetyStatus?: string }>
+  >([])
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null)
   const [latticeParams, setLatticeParams] = useState<{
+    pattern: string
     density: number
     strutRadius: number
     gridX: number
@@ -202,6 +243,7 @@ function App() {
             if (payload.simulation) setSimulation(payload.simulation)
             if (payload.latticeParams) {
               setLatticeParams({
+                pattern: payload.latticeParams.pattern ?? 'strut-grid',
                 density: payload.latticeParams.density,
                 strutRadius: payload.latticeParams.strutRadius,
                 gridX: payload.latticeParams.gridX,
@@ -232,6 +274,7 @@ function App() {
   }
 
   const handleRegenerate = async (overrides: {
+    pattern?: string
     density?: number
     strutRadius?: number
     gridX?: number
@@ -241,12 +284,15 @@ function App() {
     if (!jobId) return
     setIsRegenerating(true)
     try {
+      const { pattern, ...rest } = overrides
       const res = await regenerateLattice(jobId, {
         ...(selectedMaterialId && { selectedMaterialId }),
-        ...overrides,
+        ...(pattern && { pattern: pattern as LatticePatternValue }),
+        ...rest,
       })
       setSimulation(res.simulation)
       setLatticeParams({
+        pattern: res.latticeParams.pattern,
         density: res.latticeParams.density,
         strutRadius: res.latticeParams.strutRadius,
         gridX: res.latticeParams.gridX,
@@ -379,15 +425,47 @@ function App() {
                               setSelectedMaterialId(m.id)
                               selectMaterial(jobId, m.id)
                             }}
-                            className="w-full text-left px-3 py-2 rounded border border-[var(--bp-glass-border)] hover:border-[var(--bp-energy)] hover:bg-[var(--bp-glass)] transition-colors text-[var(--bp-ink)]"
+                            className={`w-full text-left px-3 py-2 rounded border transition-colors text-[var(--bp-ink)] ${
+                              m.safetyWarning
+                                ? 'border-red-500/80 bg-red-500/5 hover:border-red-500 hover:bg-red-500/10'
+                                : 'border-[var(--bp-glass-border)] hover:border-[var(--bp-energy)] hover:bg-[var(--bp-glass)]'
+                            }`}
                           >
-                            <span className="font-medium">{m.name}</span>
+                            <span className="font-medium flex items-center gap-1.5">
+                              {m.safetyWarning && (
+                                <span className="text-red-500" title="Hazardous material">
+                                  ⚠
+                                </span>
+                              )}
+                              {m.name}
+                            </span>
                             {m.summary && (
                               <span className="block text-xs text-[var(--bp-ink-muted)] mt-0.5">{m.summary}</span>
                             )}
+                            {m.safetyStatus && (
+                              <span
+                                className={`block text-xs mt-1 ${m.safetyWarning ? 'text-red-600 dark:text-red-400 font-medium' : 'text-[var(--bp-ink-muted)]'}`}
+                                role={m.safetyWarning ? 'alert' : undefined}
+                              >
+                                {m.safetyWarning ? '⚠ ' : ''}
+                                {m.safetyStatus}
+                              </span>
+                            )}
                           </button>
                         ) : (
-                          <span className="text-[var(--bp-ink)]">{m.name}</span>
+                          <span className="text-[var(--bp-ink)]">
+                            <span className="flex items-center gap-1.5">
+                              {m.safetyWarning && <span className="text-red-500">⚠</span>}
+                              {m.name}
+                            </span>
+                            {m.safetyStatus && (
+                              <span
+                                className={`block text-xs mt-0.5 ${m.safetyWarning ? 'text-red-600 dark:text-red-400' : 'text-[var(--bp-ink-muted)]'}`}
+                              >
+                                {m.safetyStatus}
+                              </span>
+                            )}
+                          </span>
                         )}
                       </li>
                     ))}
