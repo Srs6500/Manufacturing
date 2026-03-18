@@ -19,6 +19,7 @@ export {
   listJobs,
   type JobStatus,
   type JobRecord,
+  type JobResult,
   type UpdateJobOptions,
   type ListJobsOptions,
   type ListJobsResult,

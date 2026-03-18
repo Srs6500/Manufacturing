@@ -165,6 +165,8 @@ model Job {
   requirements Json?
   latticePath  String?
   reportPath   String?
+  /// latticeParams, simulation, selectedMaterialId for reopen
+  result       Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

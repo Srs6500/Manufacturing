@@ -5,6 +5,13 @@ import type { AnalyzedRequirements } from '../agents/types.js'
 
 export type JobStatus = 'running' | 'done' | 'failed'
 
+/** Stored when job completes; used for reopen. */
+export interface JobResult {
+  latticeParams?: { pattern: string; density: number; strutRadius: number; gridX: number; gridY: number; gridZ: number }
+  simulation?: { pattern: string; estimatedMassG: number; estimatedLoadKg: number; safetyFactor: number }
+  selectedMaterialId?: string | null
+}
+
 export interface JobRecord {
   id: string
   prompt: string
@@ -12,6 +19,7 @@ export interface JobRecord {
   requirements: AnalyzedRequirements | null
   latticePath: string | null
   reportPath: string | null
+  result: JobResult | null
   createdAt: number
   updatedAt: number
 }
@@ -23,6 +31,7 @@ function rowToRecord(row: {
   requirements: unknown
   latticePath: string | null
   reportPath: string | null
+  result: unknown
   createdAt: Date
   updatedAt: Date
 }): JobRecord {
@@ -33,6 +42,7 @@ function rowToRecord(row: {
     requirements: row.requirements as AnalyzedRequirements | null,
     latticePath: row.latticePath,
     reportPath: row.reportPath,
+    result: (row.result as JobResult | null) ?? null,
     createdAt: row.createdAt.getTime(),
     updatedAt: row.updatedAt.getTime(),
   }
@@ -58,6 +68,7 @@ export interface UpdateJobOptions {
   requirements?: AnalyzedRequirements | null
   latticePath?: string | null
   reportPath?: string | null
+  result?: JobResult | null
 }
 
 /**
@@ -82,6 +93,7 @@ export async function updateJob(
         requirements: opts.requirements != null ? (opts.requirements as object) : undefined,
         latticePath: opts.latticePath !== undefined ? opts.latticePath : undefined,
         reportPath: opts.reportPath !== undefined ? opts.reportPath : undefined,
+        result: opts.result !== undefined ? (opts.result as object) : undefined,
         updatedAt: new Date(),
       },
     })

@@ -329,11 +329,22 @@ app.post('/api/generate', async (req, res) => {
       const latticePath = state.latticeResult?.path ?? null
       const reportPath = state.reportPath ?? null
 
+      const lr = state.latticeResult
+      const jobResult =
+        !state.error && lr && lr.params && lr.simulation
+          ? {
+              latticeParams: lr.params as { pattern: string; density: number; strutRadius: number; gridX: number; gridY: number; gridZ: number },
+              simulation: lr.simulation as { pattern: string; estimatedMassG: number; estimatedLoadKg: number; safetyFactor: number },
+              selectedMaterialId: state.selectedMaterialId ?? null,
+            }
+          : undefined
+
       await updateJob(jobId, {
         status: state.error ? 'failed' : 'done',
         requirements: (state.requirements as AnalyzedRequirements | null | undefined) ?? undefined,
         latticePath,
         reportPath,
+        result: jobResult,
       })
       emit('done', {
         requirements: state.requirements ?? null,
