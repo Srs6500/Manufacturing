@@ -58,7 +58,8 @@ Create `backend/.env.local` with:
 
 - **PostgreSQL:** Create DB with `createdb lattice_ai`, then run `npm run db:migrate` in `backend/`.
 
-- **API:** `GET /api/jobs/:jobId` returns the stored job (prompt, status, requirements). Jobs can be `running`, `done`, or `failed` if the pipeline errors.
+- **API:** `GET /api/jobs` lists past jobs. `GET /api/jobs/:jobId` returns the stored job (prompt, status, requirements, result). Jobs can be `running`, `done`, or `failed` if the pipeline errors.
+- **PubChem:** Toxicity/safety checks (no API key). Red Alert for hazardous materials.
 - **pgvector:** For semantic search on materials/designs, run `brew install pgvector` then `CREATE EXTENSION vector;` in your DB.
 
 ## Database schema (PostgreSQL + Prisma)
@@ -86,7 +87,10 @@ Migrations: `npm run db:migrate` in `backend/`. Prisma Studio: `npm run db:studi
 ## UI (Electric Blueprint)
 
 - **Mind's Eye:** Grid background, central “Thought Bar” (“What do you wish to manifest?”), Tesla-style loading bar, terminal-style Brain Feed while generating.
-- **Laboratory:** After a result, layout: left = Dynamo (gauges placeholder), center = 3D wireframe view, right = Build Bible (datasheet-style specs). Colors: Prussian Blue, Arc Blue, Copper Oxide for warnings.
+- **Laboratory:** After a result, layout: left = Dynamo (gauges, material options, lattice pattern selector), center = 3D wireframe view, right = Build Bible (datasheet-style specs). Colors: Prussian Blue, Arc Blue, Copper Oxide for warnings.
+- **My designs:** Clock icon in header opens history panel. Reopen past jobs, view prompt, status, date.
+- **Toxicity:** Each material shows safety status ("No known hazards" or Red Alert for hazardous).
+- **Lattice pattern:** Choose Strut grid, Octet truss, Honeycomb, or Gyroid. Apply & re-validate to regenerate.
 
 ---
 
