@@ -112,18 +112,6 @@ const CURATED_MATERIALS: MaterialOption[] = [
     printableBy: ['SLM', 'EBM'],
     summary: 'Biocompatible, wear resistant. Dental and orthopedic implants.',
   },
-  // Test material for toxicity Red Alert (PubChem maps to lead)
-  {
-    id: 'pb-test',
-    name: 'Lead (hazardous – test only)',
-    formula: 'Pb',
-    density: 11.34,
-    youngsModulus: 16,
-    yieldStrength: 18,
-    costUsdPerKg: 3,
-    printableBy: [],
-    summary: 'TEST: Do not use. Toxic. For verifying Red Alert UI only.',
-  },
 ]
 
 /**
@@ -288,8 +276,7 @@ async function searchMaterialsProject(
 
   if (docs.length === 0) return []
 
-  const pbTest = CURATED_MATERIALS.find((m) => m.id === 'pb-test')
-  const mpOptions = docs.slice(0, 4).map((d, i) => ({
+  return docs.slice(0, 5).map((d, i) => ({
     id: (d.material_id as string) ?? `mp-${i}`,
     name: (d.formula_pretty as string) ?? 'Unknown',
     formula: (d.formula_pretty as string) ?? '',
@@ -300,8 +287,6 @@ async function searchMaterialsProject(
     printableBy: ['SLM', 'FDM'],
     summary: `${d.formula_pretty ?? 'Material'} from Materials Project`,
   }))
-  // Append hazardous test material so Red Alert is visible when using MP
-  return pbTest ? [...mpOptions, pbTest] : mpOptions
 }
 
 function extractElements(hint: string): string[] {
@@ -386,10 +371,6 @@ function filterCuratedMaterials(
   })
 
   const filtered = scored.filter((s) => s.score > 0).map((s) => s.material)
-  const base = filtered.length > 0 ? filtered : CURATED_MATERIALS.filter((m) => m.id !== 'pb-test')
-  // Include hazardous test material when using curated fallback so Red Alert is visible
-  const pbTest = CURATED_MATERIALS.find((m) => m.id === 'pb-test')
-  const result =
-    filtered.length === 0 && pbTest ? [...base.slice(0, 4), pbTest] : base
-  return result.slice(0, 5)
+  const base = filtered.length > 0 ? filtered : CURATED_MATERIALS
+  return base.slice(0, 5)
 }

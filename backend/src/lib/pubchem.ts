@@ -223,7 +223,6 @@ export function getPubChemSearchTerm(material: { id: string; name: string; formu
     'petg': 'polyethylene terephthalate glycol',
     'tpe': 'thermoplastic elastomer',
     'co-cr': 'cobalt',
-    'pb-test': 'lead',
   }
   const mapped = curatedMap[material.id]
   if (mapped) return mapped
