@@ -4,7 +4,10 @@ import {
   generate,
   downloadJobPackage,
   regenerateLattice,
+  listJobs,
+  getJob,
   LATTICE_PATTERNS,
+  type JobSummary,
   type LatticePatternValue,
 } from './lib/api'
 import { subscribeToJob, selectMaterial } from './lib/socket'
@@ -207,6 +210,9 @@ function App() {
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyJobs, setHistoryJobs] = useState<JobSummary[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   const unsubscribeRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
@@ -273,6 +279,47 @@ function App() {
     }
   }
 
+  const handleOpenHistory = async () => {
+    setHistoryOpen(true)
+    setHistoryLoading(true)
+    try {
+      const { jobs } = await listJobs({ limit: 30 })
+      setHistoryJobs(jobs)
+    } catch {
+      setHistoryJobs([])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const handleReopenJob = async (id: string) => {
+    setHistoryOpen(false)
+    try {
+      const job = await getJob(id)
+      setJobId(job.id)
+      setProgress('done')
+      setLastResult((job.requirements as AnalyzedRequirements | null) ?? null)
+      setSimulation(job.result?.simulation ?? null)
+      setLatticeParams(
+        job.result?.latticeParams
+          ? {
+              pattern: job.result.latticeParams.pattern,
+              density: job.result.latticeParams.density,
+              strutRadius: job.result.latticeParams.strutRadius,
+              gridX: job.result.latticeParams.gridX,
+              gridY: job.result.latticeParams.gridY,
+              gridZ: job.result.latticeParams.gridZ,
+            }
+          : null
+      )
+      setSelectedMaterialId(job.result?.selectedMaterialId ?? null)
+      setMaterialOptions([])
+      setLatticeVersion((v) => v + 1)
+    } catch (err) {
+      console.error('[Reopen]', err)
+    }
+  }
+
   const handleRegenerate = async (overrides: {
     pattern?: string
     density?: number
@@ -323,8 +370,86 @@ function App() {
             </h1>
             <p className="text-xs text-[var(--bp-ink-muted)] mt-0.5">{TAGLINE}</p>
           </div>
+          <button
+            type="button"
+            onClick={handleOpenHistory}
+            className="p-2 rounded-lg border border-[var(--bp-glass-border)] hover:bg-[var(--bp-glass)] hover:border-[var(--bp-energy)]/50 text-[var(--bp-ink-muted)] hover:text-[var(--bp-energy)] transition-colors"
+            title="My designs"
+            aria-label="View design history"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </button>
         </div>
       </header>
+
+      {/* History panel (slide-over) */}
+      {historyOpen && (
+        <div className="fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Design history">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setHistoryOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative ml-auto w-full max-w-md bg-[var(--bp-bg)] border-l border-[var(--bp-glass-border)] shadow-xl flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-[var(--bp-glass-border)]">
+              <h2 className="text-lg font-semibold text-[var(--bp-ink)]">My designs</h2>
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(false)}
+                className="p-2 rounded hover:bg-[var(--bp-glass)] text-[var(--bp-ink-muted)]"
+                aria-label="Close"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              {historyLoading ? (
+                <p className="text-sm text-[var(--bp-ink-muted)]">Loading…</p>
+              ) : historyJobs.length === 0 ? (
+                <p className="text-sm text-[var(--bp-ink-muted)]">No designs yet. Create one with a prompt above.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {historyJobs.map((job) => (
+                    <li key={job.id}>
+                      <button
+                        type="button"
+                        onClick={() => handleReopenJob(job.id)}
+                        disabled={job.status === 'running'}
+                        className="w-full text-left px-4 py-3 rounded-lg border border-[var(--bp-glass-border)] hover:border-[var(--bp-energy)]/50 hover:bg-[var(--bp-glass)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        <p className="text-sm text-[var(--bp-ink)] line-clamp-2 font-medium">
+                          {job.prompt || 'Untitled'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1.5 text-xs text-[var(--bp-ink-muted)]">
+                          <span
+                            className={
+                              job.status === 'done'
+                                ? 'text-green-600 dark:text-green-400'
+                                : job.status === 'failed'
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : 'text-amber-600 dark:text-amber-400'
+                            }
+                          >
+                            {job.status}
+                          </span>
+                          <span>·</span>
+                          <span>{new Date(job.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 flex flex-col max-w-7xl w-full mx-auto px-4 py-8">
         {!showLaboratory ? (

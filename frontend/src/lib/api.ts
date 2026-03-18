@@ -21,6 +21,54 @@ export async function health(): Promise<{ ok: boolean }> {
   return res.json() as Promise<{ ok: boolean }>
 }
 
+/** Job summary for history list. */
+export interface JobSummary {
+  id: string
+  prompt: string
+  status: 'running' | 'done' | 'failed'
+  createdAt: number
+}
+
+/** Full job for reopen (includes result with latticeParams, simulation). */
+export interface JobDetail extends JobSummary {
+  requirements: unknown
+  latticePath: string | null
+  reportPath: string | null
+  result: {
+    latticeParams?: { pattern: string; density: number; strutRadius: number; gridX: number; gridY: number; gridZ: number }
+    simulation?: { pattern: string; estimatedMassG: number; estimatedLoadKg: number; safetyFactor: number }
+    selectedMaterialId?: string | null
+  } | null
+}
+
+/**
+ * List past jobs (for history panel).
+ */
+export async function listJobs(options?: { limit?: number; status?: 'running' | 'done' | 'failed' }): Promise<{
+  jobs: JobSummary[]
+  total: number
+}> {
+  const params = new URLSearchParams()
+  if (options?.limit) params.set('limit', String(options.limit))
+  if (options?.status) params.set('status', options.status)
+  const url = `${API_BASE}/api/jobs${params.toString() ? `?${params}` : ''}`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Failed to list jobs: HTTP ${res.status}`)
+  return res.json()
+}
+
+/**
+ * Get a job by ID (for reopen).
+ */
+export async function getJob(jobId: string): Promise<JobDetail> {
+  const res = await fetch(`${API_BASE}/api/jobs/${jobId}`)
+  if (!res.ok) {
+    if (res.status === 404) throw new Error('Job not found')
+    throw new Error(`Failed to fetch job: HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
 /**
  * URL for the lattice STL file. Use with STLLoader or as src for fetch.
  * Optional cacheBuster to force reload after regeneration.
