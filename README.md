@@ -6,7 +6,7 @@ Vertical AI SaaS: natural-language → manufacturable lattice structure in under
 
 ## Repo structure
 
-- **`frontend/`** — React + Vite + TypeScript, Three.js (react-three-fiber). **Electric Blueprint** UI: Mind's Eye (Thought Bar + Brain Feed) → Laboratory (3D viewport, Dynamo gauges, Build Bible datasheet).
+- **`frontend/`** — React + Vite + TypeScript, Three.js (react-three-fiber). **Electric Blueprint** UI: Mind's Eye (Thought Bar + Brain Feed) → Laboratory (3D viewport, Dynamo gauges, Builder Spec datasheet).
 - **`backend/`** — Node.js + Express 5 + TypeScript, Requirement Analyzer (Vertex AI / OpenAI), **PostgreSQL + Prisma** (ORM, migrations), WebSocket progress.
 
 ## Prerequisites
@@ -87,7 +87,7 @@ Migrations: `npm run db:migrate` in `backend/`. Prisma Studio: `npm run db:studi
 ## UI (Electric Blueprint)
 
 - **Mind's Eye:** Grid background, central “Thought Bar” (“What do you wish to manifest?”), Tesla-style loading bar, terminal-style Brain Feed while generating.
-- **Laboratory:** After a result, layout: left = Dynamo (gauges, material options, lattice pattern selector), center = 3D wireframe view, right = Build Bible (datasheet-style specs). Colors: Prussian Blue, Arc Blue, Copper Oxide for warnings.
+- **Laboratory:** After a result, layout: left = Dynamo (gauges, material options, lattice pattern selector), center = 3D wireframe view, right = Builder Spec (datasheet-style specs). Colors: Prussian Blue, Arc Blue, Copper Oxide for warnings.
 - **My designs:** Clock icon in header opens history panel. Reopen past jobs, view prompt, status, date.
 - **Toxicity:** Each material shows safety status ("No known hazards" or Red Alert for hazardous).
 - **Lattice pattern:** Choose Strut grid, Octet truss, Honeycomb, or Gyroid. Apply & re-validate to regenerate.

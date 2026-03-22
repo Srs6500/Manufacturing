@@ -27,7 +27,7 @@ export function getJobOutputPaths(jobId: string): {
   return {
     dir,
     lattice: join(dir, 'lattice.stl'),
-    report: join(dir, 'Build_Bible.pdf'),
+    report: join(dir, 'Builder_Spec.pdf'),
     certificate: join(dir, 'certificate.json'),
   }
 }

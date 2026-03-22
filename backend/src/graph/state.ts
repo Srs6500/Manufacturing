@@ -51,7 +51,7 @@ export const LatticePipelineState = Annotation.Root({
   selectedMaterialId: Annotation<string | null>(),
   /** Lattice generation result (path, params, simulation). */
   latticeResult: Annotation<LatticeResultState | null>(),
-  /** Build Bible PDF path. */
+  /** Builder Spec PDF path. */
   reportPath: Annotation<string | null>(),
   /** Whether the pipeline failed. */
   error: Annotation<boolean>(),

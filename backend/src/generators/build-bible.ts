@@ -10,7 +10,7 @@ const SECTION_SIZE = 14
 const BODY_SIZE = 11
 
 /**
- * Generate a Build Bible PDF from analyzed requirements and lattice simulation.
+ * Generate a Builder Spec PDF from analyzed requirements and lattice simulation.
  * Saves to the given path and returns it on success, null on failure.
  */
 export async function generateBuildBible(
@@ -72,7 +72,7 @@ export async function generateBuildBible(
       y -= LINE_HEIGHT
     }
 
-    drawTitle('Build Bible')
+    drawTitle('Builder Spec')
     drawLine(`Generated: ${new Date().toISOString()}`)
     if (jobId) drawLine(`Job ID: ${jobId}`)
     y -= LINE_HEIGHT * 0.5

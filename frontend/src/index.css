@@ -62,7 +62,7 @@ body {
   animation: bp-coil-charge 1.2s ease-in-out infinite;
 }
 
-/* Datasheet / patent style (Build Bible) */
+/* Datasheet / patent style (Builder Spec) */
 .bp-datasheet {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
