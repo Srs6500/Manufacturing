@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { LatticePreview } from './components/LatticePreview'
 import {
   generate,
@@ -211,6 +212,7 @@ function App() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const [historyJobs, setHistoryJobs] = useState<JobSummary[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
   const unsubscribeRef = useRef<(() => void) | null>(null)
@@ -352,6 +354,14 @@ function App() {
     }
   }
 
+  const handleLogout = () => {
+    setIsSigningOut(true)
+    // Same origin as session cookie (localhost:5173 via proxy) so clear matches.
+    setTimeout(() => {
+      window.location.href = '/auth/logout'
+    }, 1500)
+  }
+
   // Show Laboratory when we have a result OR when job completed (lattice/PDF may exist even if requirements failed)
   const showLaboratory =
     lastResult != null ||
@@ -359,29 +369,57 @@ function App() {
     (jobId != null && progress === 'material' && materialOptions.length > 0)
   const isGenerating = progress !== 'idle' && progress !== 'done'
 
+  if (isSigningOut) {
+    return (
+      <div className="min-h-screen bp-grid-bg flex flex-col items-center justify-center gap-6">
+        <div className="w-8 h-8 rounded-full border-2 border-[var(--bp-energy)]/30 border-t-[var(--bp-energy)] animate-spin" />
+        <p className="text-[var(--bp-ink-muted)] text-base" style={{ fontFamily: 'var(--font-ui)' }}>
+          Signing out…
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bp-grid-bg text-[var(--bp-ink)] flex flex-col">
       {/* Minimal header — Electric Blueprint */}
       <header className="border-b border-[var(--bp-glass-border)] bg-[var(--bp-glass)] backdrop-blur-sm shrink-0">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
+          <Link to="/" className="hover:opacity-90 transition-opacity">
             <h1 className="text-lg font-semibold tracking-tight text-[var(--bp-ink)]" style={{ fontFamily: 'var(--font-ui)' }}>
               Lattice AI
             </h1>
             <p className="text-xs text-[var(--bp-ink-muted)] mt-0.5">{TAGLINE}</p>
+          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleOpenHistory}
+              className="p-2 rounded-lg border border-[var(--bp-glass-border)] hover:bg-[var(--bp-glass)] hover:border-[var(--bp-energy)]/50 text-[var(--bp-ink-muted)] hover:text-[var(--bp-energy)] transition-colors"
+              title="My designs"
+              aria-label="View design history"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={isSigningOut}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--bp-glass-border)] hover:bg-[var(--bp-glass)] hover:border-[var(--bp-energy)]/50 text-[var(--bp-ink-muted)] hover:text-[var(--bp-energy)] text-sm font-medium transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              Sign out
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={handleOpenHistory}
-            className="p-2 rounded-lg border border-[var(--bp-glass-border)] hover:bg-[var(--bp-glass)] hover:border-[var(--bp-energy)]/50 text-[var(--bp-ink-muted)] hover:text-[var(--bp-energy)] transition-colors"
-            title="My designs"
-            aria-label="View design history"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-          </button>
         </div>
       </header>
 
@@ -617,12 +655,12 @@ function App() {
               </div>
             </section>
 
-            {/* Right: Ledger (Build Bible / datasheet) */}
+            {/* Right: Ledger (Builder Spec / datasheet) */}
             <aside className="lg:col-span-3 rounded-lg bg-[var(--bp-glass)] border border-[var(--bp-glass-border)] p-4 overflow-auto">
-              <h2 className="bp-datasheet-header text-[var(--bp-energy)]">Build Bible</h2>
+              <h2 className="bp-datasheet-header text-[var(--bp-energy)]">Builder Spec</h2>
               <div className="bp-datasheet space-y-3 text-[var(--bp-ink)]">
                 {!lastResult && (
-                  <p className="text-[var(--bp-ink-muted)] text-sm">Requirements could not be extracted. Lattice and Build Bible PDF are still available.</p>
+                  <p className="text-[var(--bp-ink-muted)] text-sm">Requirements could not be extracted. Lattice and Builder Spec PDF are still available.</p>
                 )}
                 {lastResult?.summary && (
                   <div>
@@ -674,7 +712,7 @@ function App() {
                       {isDownloading ? 'Downloading…' : 'Download Package'}
                     </button>
                     <p className="text-[var(--bp-ink-muted)] text-xs">
-                      ZIP: lattice.stl, Build_Bible.pdf
+                      ZIP: lattice.stl, Builder_Spec.pdf
                     </p>
                     {downloadError && (
                       <p className="text-[var(--bp-warning)] text-xs">{downloadError}</p>
@@ -702,7 +740,7 @@ function App() {
         {progress === 'done' && !lastResult && !showLaboratory && !pipelineError && (
           <section className="rounded-lg border border-[var(--bp-glass-border)] bg-[var(--bp-glass)] p-4 max-w-2xl mx-auto w-full">
             <h2 className="bp-datasheet-header text-[var(--bp-energy)] mb-2">Output</h2>
-            <p className="text-[var(--bp-ink-muted)] text-sm">ZIP: lattice.stl, Build_Bible.pdf, Certificate.json — coming next.</p>
+            <p className="text-[var(--bp-ink-muted)] text-sm">ZIP: lattice.stl, Builder_Spec.pdf, Certificate.json — coming next.</p>
           </section>
         )}
       </main>

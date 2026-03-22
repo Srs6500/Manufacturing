@@ -10,7 +10,33 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
-        changeOrigin: true,
+        changeOrigin: false,
+        secure: false,
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            const cookies = proxyRes.headers['set-cookie']
+            if (cookies) {
+              proxyRes.headers['set-cookie'] = cookies.map((c: string) =>
+                c.replace(/;\s*Secure/gi, '')
+              )
+            }
+          })
+        },
+      },
+      '/auth': {
+        target: 'http://localhost:3001',
+        changeOrigin: false,
+        secure: false,
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            const cookies = proxyRes.headers['set-cookie']
+            if (cookies) {
+              proxyRes.headers['set-cookie'] = cookies.map((c: string) =>
+                c.replace(/;\s*Secure/gi, '')
+              )
+            }
+          })
+        },
       },
       '/socket.io': {
         target: 'http://localhost:3001',
