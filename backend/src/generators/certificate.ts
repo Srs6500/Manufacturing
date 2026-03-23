@@ -12,7 +12,12 @@ export interface CertificateData {
     estimatedMassG: number
     estimatedLoadKg: number
     safetyFactor: number
+    relativeDensityPercent?: number
+    indicativeYieldMpa?: number
+    structuralProofNote?: string
   } | null
+  /** Matches Builder Spec Section 1.0 (canonical payload hash) */
+  builderSpecDocumentSha256?: string
   /** Placeholder for future blockchain proof */
   proof?: {
     txHash?: string
@@ -28,7 +33,8 @@ export function generateCertificate(
   jobId: string,
   prompt: string,
   requirements: AnalyzedRequirements | null,
-  simulation?: LatticeResult | null
+  simulation?: LatticeResult | null,
+  builderSpecDocumentSha256?: string
 ): string {
   const cert: CertificateData = {
     jobId,
@@ -41,8 +47,12 @@ export function generateCertificate(
           estimatedMassG: simulation.estimatedMassG,
           estimatedLoadKg: simulation.estimatedLoadKg,
           safetyFactor: simulation.safetyFactor,
+          relativeDensityPercent: simulation.relativeDensityPercent,
+          indicativeYieldMpa: simulation.indicativeYieldMpa,
+          structuralProofNote: simulation.structuralProofNote,
         }
       : null,
+    ...(builderSpecDocumentSha256 ? { builderSpecDocumentSha256 } : {}),
   }
 
   const json = JSON.stringify(cert, null, 2)

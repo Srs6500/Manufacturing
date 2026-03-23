@@ -53,6 +53,12 @@ export const LatticePipelineState = Annotation.Root({
   latticeResult: Annotation<LatticeResultState | null>(),
   /** Builder Spec PDF path. */
   reportPath: Annotation<string | null>(),
+  /** SHA-256 of canonical Builder Spec payload (Section 1.0). */
+  documentSha256: Annotation<string | null>(),
+  /** True when LLM content policy blocked the prompt (weapons, explosives, etc.). */
+  policyBlocked: Annotation<boolean>(),
+  /** User-facing explanation when policyBlocked (from model or fallback). */
+  policyMessage: Annotation<string | null>(),
   /** Whether the pipeline failed. */
   error: Annotation<boolean>(),
 })

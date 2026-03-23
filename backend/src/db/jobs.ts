@@ -8,8 +8,13 @@ export type JobStatus = 'running' | 'done' | 'failed'
 /** Stored when job completes; used for reopen. */
 export interface JobResult {
   latticeParams?: { pattern: string; density: number; strutRadius: number; gridX: number; gridY: number; gridZ: number }
-  simulation?: { pattern: string; estimatedMassG: number; estimatedLoadKg: number; safetyFactor: number }
+  simulation?: Record<string, unknown>
   selectedMaterialId?: string | null
+  /** Builder Spec Section 1.0 canonical hash */
+  builderSpecDocumentSha256?: string
+  /** LLM content policy blocked (weapons, explosives, etc.) */
+  policyBlocked?: boolean
+  policyMessage?: string
 }
 
 export interface JobRecord {

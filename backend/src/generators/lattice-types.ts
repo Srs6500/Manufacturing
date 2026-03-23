@@ -27,4 +27,10 @@ export interface LatticeResult {
   estimatedLoadKg: number
   /** Safety factor (estimated load / target load) */
   safetyFactor: number
+  /** Volume fraction of solid in bounding box, percent (surrogate model) */
+  relativeDensityPercent: number
+  /** Plain-language structural proof line for Builder Spec Section 3.0 */
+  structuralProofNote: string
+  /** Scalar used in proof note — not a certified FEA yield (MPa) */
+  indicativeYieldMpa: number
 }

@@ -6,10 +6,11 @@
  * are encapsulated here.
  */
 import { interrupt } from '@langchain/langgraph'
+import { evaluateContentPolicy } from '../agents/content-policy.js'
 import { analyzeRequirements } from '../agents/requirement-analyzer.js'
 import { searchMaterials } from '../agents/material-selector.js'
 import { generateLattice } from '../generators/lattice-generator.js'
-import { generateBuildBible } from '../generators/build-bible.js'
+import { generateBuildBible, type BuilderSpecMaterialSnapshot } from '../generators/build-bible.js'
 import { generateCertificate } from '../generators/certificate.js'
 import { getJobOutputPaths } from '../lib/output-paths.js'
 import type {
@@ -21,9 +22,33 @@ import { toMaterialOptionState } from './state.js'
 /** Input type for nodes; matches full state. */
 type State = LatticePipelineStateType
 
+// ——— policy_gate (LLM — before analyze) ———
+
+/**
+ * Runs content policy via Vertex/OpenAI structured JSON. Sets policyBlocked + policyMessage when disallowed.
+ * Graph routing sends END here when blocked so material_select / interrupt never runs.
+ */
+export async function policyGateNode(state: State): Promise<Partial<State>> {
+  const outcome = await evaluateContentPolicy(state.prompt)
+  if (outcome.allowed) {
+    return {
+      policyBlocked: false,
+      policyMessage: null,
+    }
+  }
+  return {
+    policyBlocked: true,
+    policyMessage: outcome.userMessage,
+    error: true,
+  }
+}
+
 // ——— analyze ———
 
 export async function analyzeNode(state: State): Promise<Partial<State>> {
+  if (state.policyBlocked) {
+    return {}
+  }
   const requirements = await analyzeRequirements(state.prompt)
   return { requirements: requirements ?? null }
 }
@@ -31,6 +56,9 @@ export async function analyzeNode(state: State): Promise<Partial<State>> {
 // ——— material_search ———
 
 export async function materialSearchNode(state: State): Promise<Partial<State>> {
+  if (state.policyBlocked) {
+    return { materialOptions: [] }
+  }
   const options = await searchMaterials(state.requirements ?? null)
   const materialOptions = options.map(toMaterialOptionState)
   return { materialOptions }
@@ -88,14 +116,29 @@ export async function buildBibleNode(state: State): Promise<Partial<State>> {
     return {}
   }
   const paths = getJobOutputPaths(state.jobId)
-  const reportPath = await generateBuildBible(
-    paths.report,
-    state.requirements ?? null,
-    state.prompt,
-    state.jobId,
-    state.latticeResult.simulation
-  )
-  return { reportPath: reportPath ?? null }
+  const opt = state.materialOptions.find((m) => m.id === state.selectedMaterialId)
+  const snapshot: BuilderSpecMaterialSnapshot | null = opt
+    ? {
+        id: opt.id,
+        name: opt.name,
+        formula: opt.formula,
+        safetyStatus: opt.safetyStatus,
+        safetyWarning: opt.safetyWarning,
+      }
+    : null
+  const out = await generateBuildBible(paths.report, {
+    requirements: state.requirements ?? null,
+    prompt: state.prompt,
+    jobId: state.jobId,
+    simulation: state.latticeResult.simulation,
+    latticeParams: state.latticeResult.params,
+    selectedMaterialId: state.selectedMaterialId,
+    selectedMaterialOption: snapshot,
+  })
+  return {
+    reportPath: out?.path ?? null,
+    documentSha256: out?.documentSha256 ?? null,
+  }
 }
 
 // ——— certificate ———
@@ -108,7 +151,8 @@ export function certificateNode(state: State): Partial<State> {
     state.jobId,
     state.prompt,
     state.requirements ?? null,
-    state.latticeResult?.simulation ?? null
+    state.latticeResult?.simulation ?? null,
+    state.documentSha256 ?? undefined
   )
   return {}
 }

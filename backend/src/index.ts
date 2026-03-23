@@ -317,20 +317,38 @@ app.post('/api/jobs/:jobId/regenerate', async (req, res) => {
       return res.status(500).json({ error: 'Lattice regeneration failed' })
     }
 
-    await generateBuildBible(
-      paths.report,
-      job.requirements ?? null,
-      job.prompt,
+    const materialId = overrides.selectedMaterialId ?? job.result?.selectedMaterialId ?? null
+    const bible = await generateBuildBible(paths.report, {
+      requirements: job.requirements ?? null,
+      prompt: job.prompt,
       jobId,
-      latticeResult.simulation
-    )
+      simulation: latticeResult.simulation,
+      latticeParams: latticeResult.params,
+      selectedMaterialId: materialId,
+      selectedMaterialOption: null,
+    })
     generateCertificate(
       paths.certificate,
       jobId,
       job.prompt,
       job.requirements ?? null,
-      latticeResult.simulation
+      latticeResult.simulation,
+      bible?.documentSha256
     )
+
+    try {
+      await updateJob(jobId, {
+        status: 'done',
+        result: {
+          latticeParams: latticeResult.params,
+          simulation: latticeResult.simulation as unknown as Record<string, unknown>,
+          selectedMaterialId: materialId ?? job.result?.selectedMaterialId ?? null,
+          builderSpecDocumentSha256: bible?.documentSha256,
+        },
+      })
+    } catch (e) {
+      console.warn('[API] regenerate: could not persist job result', e)
+    }
 
     res.json({
       simulation: latticeResult.simulation,
@@ -417,6 +435,9 @@ app.post('/api/generate', async (req, res) => {
           selectedMaterialId: null,
           latticeResult: null,
           reportPath: null,
+          documentSha256: null,
+          policyBlocked: false,
+          policyMessage: null,
           error: false,
         },
         config
@@ -445,6 +466,9 @@ app.post('/api/generate', async (req, res) => {
         latticeResult?: { path?: string; simulation?: unknown; params?: unknown } | null
         reportPath?: string | null
         selectedMaterialId?: string | null
+        documentSha256?: string | null
+        policyBlocked?: boolean
+        policyMessage?: string | null
         error?: boolean
       }
       try {
@@ -457,14 +481,27 @@ app.post('/api/generate', async (req, res) => {
       const reportPath = state.reportPath ?? null
 
       const lr = state.latticeResult
-      const jobResult =
+      const policyBlocked = Boolean(state.policyBlocked)
+
+      const successResult =
         !state.error && lr && lr.params && lr.simulation
           ? {
               latticeParams: lr.params as { pattern: string; density: number; strutRadius: number; gridX: number; gridY: number; gridZ: number },
-              simulation: lr.simulation as { pattern: string; estimatedMassG: number; estimatedLoadKg: number; safetyFactor: number },
+              simulation: lr.simulation as Record<string, unknown>,
               selectedMaterialId: state.selectedMaterialId ?? null,
+              builderSpecDocumentSha256: state.documentSha256 ?? undefined,
             }
           : undefined
+
+      const jobResult = policyBlocked
+        ? {
+            policyBlocked: true as const,
+            policyMessage:
+              typeof state.policyMessage === 'string' && state.policyMessage.trim()
+                ? state.policyMessage.trim()
+                : undefined,
+          }
+        : successResult
 
       await updateJob(jobId, {
         status: state.error ? 'failed' : 'done',
@@ -482,6 +519,12 @@ app.post('/api/generate', async (req, res) => {
         latticeParams: state.latticeResult?.params ?? undefined,
         selectedMaterialId: state.selectedMaterialId ?? undefined,
         error: state.error ?? false,
+        policyBlocked,
+        policyMessage: policyBlocked
+          ? typeof state.policyMessage === 'string'
+            ? state.policyMessage
+            : undefined
+          : undefined,
       })
     } catch (err) {
       console.error('[Pipeline]', err)
