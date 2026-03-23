@@ -4,6 +4,14 @@
 
 Vertical AI SaaS: natural-language → manufacturable lattice structure in under 7 minutes.
 
+**Product & engineering reference**
+
+- **[`ARCHITECTURE.md`](./ARCHITECTURE.md)** — Vision (“OS for physical reality”), UX intent, **shipped vs target stack**, LangGraph truth vs multi-agent target, **knowledge via PageIndex (vectorless)** — not classic embedding RAG, DB “three brains,” APIs, business phases.
+- **[`GRAND_PLAN.md`](./GRAND_PLAN.md)** — Phased delivery, backlog, operating rules.
+- **[`docs/LATTICE_DYNAMO_CONSTRAINTS_SPEC.md`](./docs/LATTICE_DYNAMO_CONSTRAINTS_SPEC.md)** — Dynamo UI: dynamic lattice eligibility, bounded sliders, re-validate loop, `ui_constraints` API shape.
+- **[`docs/CONTENT_POLICY.md`](./docs/CONTENT_POLICY.md)** — LLM content policy (weapons/explosives) before generation; `policy_gate` in LangGraph.
+- **[`docs/ABUSE_PREVENTION_ROADMAP.md`](./docs/ABUSE_PREVENTION_ROADMAP.md)** — Evasion hardening, logging, DB flags, lawful escalation (staged with GRAND_PLAN B6 / Phase C).
+
 ## Repo structure
 
 - **`frontend/`** — React + Vite + TypeScript, Three.js (react-three-fiber). **Electric Blueprint** UI: Mind's Eye (Thought Bar + Brain Feed) → Laboratory (3D viewport, Dynamo gauges, Builder Spec datasheet).
@@ -60,7 +68,7 @@ Create `backend/.env.local` with:
 
 - **API:** `GET /api/jobs` lists past jobs. `GET /api/jobs/:jobId` returns the stored job (prompt, status, requirements, result). Jobs can be `running`, `done`, or `failed` if the pipeline errors.
 - **PubChem:** Toxicity/safety checks (no API key). Red Alert for hazardous materials.
-- **pgvector:** For semantic search on materials/designs, run `brew install pgvector` then `CREATE EXTENSION vector;` in your DB.
+- **pgvector:** Optional — only if you add a **separate** embedding feature. **Primary knowledge retrieval is PageIndex (vectorless),** not pgvector RAG. To experiment with vectors locally: `brew install pgvector` then `CREATE EXTENSION vector;` in your DB.
 
 ## Database schema (PostgreSQL + Prisma)
 
