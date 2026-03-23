@@ -208,6 +208,8 @@ function App() {
   } | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
   const [pipelineError, setPipelineError] = useState(false)
+  /** LLM content policy refusal (weapons/explosives) — distinct from generic pipelineError */
+  const [policyBlockMessage, setPolicyBlockMessage] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [isRegenerating, setIsRegenerating] = useState(false)
@@ -234,6 +236,7 @@ function App() {
     setLatticeVersion(0)
     setJobId(null)
     setPipelineError(false)
+    setPolicyBlockMessage(null)
     setDownloadError(null)
     try {
       const { jobId: id } = await generate(prompt)
@@ -245,8 +248,18 @@ function App() {
           setMaterialOptions(payload.materialOptions)
         }
         if (payload.step === 'done') {
-          if (payload.error) setPipelineError(true)
-          else {
+          if (payload.policyBlocked) {
+            setPolicyBlockMessage(
+              typeof payload.policyMessage === 'string' && payload.policyMessage.trim()
+                ? payload.policyMessage.trim()
+                : "We can't help with that request. Please describe a lawful mechanical or aerospace part."
+            )
+            setPipelineError(false)
+          } else if (payload.error) {
+            setPipelineError(true)
+            setPolicyBlockMessage(null)
+          } else {
+            setPolicyBlockMessage(null)
             if (payload.requirements != null) setLastResult(payload.requirements)
             if (payload.simulation) setSimulation(payload.simulation)
             if (payload.latticeParams) {
@@ -300,6 +313,21 @@ function App() {
       const job = await getJob(id)
       setJobId(job.id)
       setProgress('done')
+      if (job.result?.policyBlocked) {
+        setPolicyBlockMessage(
+          job.result.policyMessage?.trim() ||
+            "We can't help with that request. Please describe a lawful mechanical or aerospace part."
+        )
+        setPipelineError(false)
+        setLastResult(null)
+        setSimulation(null)
+        setLatticeParams(null)
+        setSelectedMaterialId(null)
+        setMaterialOptions([])
+        setLatticeVersion((v) => v + 1)
+        return
+      }
+      setPolicyBlockMessage(null)
       setLastResult((job.requirements as AnalyzedRequirements | null) ?? null)
       setSimulation(job.result?.simulation ?? null)
       setLatticeParams(
@@ -364,9 +392,10 @@ function App() {
 
   // Show Laboratory when we have a result OR when job completed (lattice/PDF may exist even if requirements failed)
   const showLaboratory =
-    lastResult != null ||
-    (jobId != null && progress === 'done') ||
-    (jobId != null && progress === 'material' && materialOptions.length > 0)
+    !policyBlockMessage &&
+    (lastResult != null ||
+      (jobId != null && progress === 'done') ||
+      (jobId != null && progress === 'material' && materialOptions.length > 0))
   const isGenerating = progress !== 'idle' && progress !== 'done'
 
   if (isSigningOut) {
@@ -728,8 +757,21 @@ function App() {
           </div>
         )}
 
+        {/* Content policy (LLM — weapons / explosives / prohibited use) */}
+        {progress === 'done' && policyBlockMessage && (
+          <section
+            className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 max-w-2xl mx-auto w-full"
+            role="alert"
+          >
+            <h2 className="bp-datasheet-header text-red-600 dark:text-red-400 mb-2">
+              Request not allowed
+            </h2>
+            <p className="text-[var(--bp-ink)] text-sm whitespace-pre-wrap">{policyBlockMessage}</p>
+          </section>
+        )}
+
         {/* Pipeline error */}
-        {progress === 'done' && pipelineError && (
+        {progress === 'done' && pipelineError && !policyBlockMessage && (
           <section className="rounded-lg border border-[var(--bp-warning)]/50 bg-[var(--bp-warning)]/10 p-4 max-w-2xl mx-auto w-full">
             <h2 className="bp-datasheet-header text-[var(--bp-warning)] mb-2">Error</h2>
             <p className="text-[var(--bp-ink)] text-sm">Generation failed. Please try again or check backend logs.</p>
@@ -737,7 +779,7 @@ function App() {
         )}
 
         {/* Placeholder when done but no result (e.g. backend offline mock) */}
-        {progress === 'done' && !lastResult && !showLaboratory && !pipelineError && (
+        {progress === 'done' && !lastResult && !showLaboratory && !pipelineError && !policyBlockMessage && (
           <section className="rounded-lg border border-[var(--bp-glass-border)] bg-[var(--bp-glass)] p-4 max-w-2xl mx-auto w-full">
             <h2 className="bp-datasheet-header text-[var(--bp-energy)] mb-2">Output</h2>
             <p className="text-[var(--bp-ink-muted)] text-sm">ZIP: lattice.stl, Builder_Spec.pdf, Certificate.json — coming next.</p>

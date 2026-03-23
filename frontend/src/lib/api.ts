@@ -68,6 +68,8 @@ export interface JobDetail extends JobSummary {
     latticeParams?: { pattern: string; density: number; strutRadius: number; gridX: number; gridY: number; gridZ: number }
     simulation?: { pattern: string; estimatedMassG: number; estimatedLoadKg: number; safetyFactor: number }
     selectedMaterialId?: string | null
+    policyBlocked?: boolean
+    policyMessage?: string
   } | null
 }
 

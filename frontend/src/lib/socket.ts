@@ -60,6 +60,9 @@ export type ProgressPayload = {
   selectedMaterialId?: string
   jobId?: string
   error?: boolean
+  /** Content policy (weapons/explosives) — when true, show policyMessage, not generic error */
+  policyBlocked?: boolean
+  policyMessage?: string
 }
 
 export function subscribeToJob(
