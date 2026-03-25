@@ -5,8 +5,8 @@
  *   START → policy_gate → (blocked → END | continue → analyze → material_search → material_select (interrupt))
  *   On resume: material_select returns selectedMaterialId → lattice → build_bible → certificate → END
  *
- * policy_gate uses LLM structured JSON (Vertex/OpenAI) — not a static keyword list — to block weapons/explosives
- * while allowing lawful aerospace/mechanical prompts (drones, satellites, structural parts).
+ * policy_gate uses LLM structured JSON (Vertex/OpenAI) — not a static keyword list — for (1) safety
+ * (weapons/explosives) and (2) eligibility (design/manufacturing intent vs off-topic, homework, chat, abuse).
  *
  * The material_select node calls interrupt() to pause. The Express layer emits
  * material options via WebSocket, waits for material_selected, then resumes
